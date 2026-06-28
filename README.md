@@ -1,6 +1,5 @@
 # Project2Markdown 🚀
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/NematollahShojaei/project2markdown?style=flat-square)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/NematollahShojaei/project2markdown/pulls)
 [![Maintained by R3D HILLS](https://img.shields.io/badge/Maintained%20by-R3D%20HILLS-black?style=flat-square)](https://r3dhills.com)
