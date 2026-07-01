@@ -1,108 +1,76 @@
-# Project2Markdown 🚀
+# Project2Markdown (P2M) 🚀
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/NematollahShojaei/project2markdown/pulls)
-[![Maintained by R3D HILLS](https://img.shields.io/badge/Maintained%20by-R3D%20HILLS-black?style=flat-square)](https://r3dhills.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Version](https://img.shields.io/badge/Go-1.20%2B-blue.svg)](https://golang.org/)
 
-**Project2Markdown** is a high-performance, stream-based CLI tool written in Go that securely traverses your project directory, maps its structural hierarchy, and consolidates all relevant source code into a single, beautifully formatted Markdown file.
+**Project2Markdown** is a high-performance, ultra-lightweight CLI utility written in Go[cite: 1]. It is engineered from the ground up to compress your entire project architecture and source code into a single, beautifully organized Markdown file optimized specifically for AI/LLM consumption (ChatGPT, Claude, Gemini).
 
-Built explicitly to streamline **LLM Context Feeding**, this tool allows you to pack your entire codebase into a clean, structured text asset that AI models (like Gemini, Claude, and ChatGPT) can instantly read, understand, and analyze without losing architectural context.
-
-Developed and maintained by **R3D HILLS**.
+Stop fighting token limits, context fragmentation, and out-of-memory crashes on massive repositories. 
 
 ---
 
-## ✨ Key Features
+## 📖 Official Guides & Tutorials
 
-- 📂 **Automated Directory Mapping:** Generates a visual, beautifully structured ASCII directory tree at the top of your context file.
-- 🏎️ **Memory-Efficient Streaming:** Uses line-by-line chunked streaming via `bufio.Scanner` rather than buffering entire files into RAM—perfect for massive enterprise codebases.
-- 🎮 **Unreal Engine & 3D Optimized:** First-class support for game developers and technical artists. It natively processes UE specs (`.uproject`, `.uplugin`, `.t3d`, `.usf`, `.ush`) while automatically ignoring massive engine-generated bloat folders.
-- 🛡️ **Zero-Bug Safety Grid:**
-  - **Circular Loop Protection:** Automatically skips symlinks and hardware junction points to prevent endless routing loops.
-  - **Smart Self-Exclusion:** Prevents self-dumping by automatically ignoring its own source code, binary, and output files.
-  - **Markdown Sanitization:** Safely escapes conflicting triple backticks (`` ``` ``) inside your source files to ensure the final output layout never breaks.
-  - **Ultra-Large Asset Buffer:** Supports single raw lines up to **20MB** (ideal for heavily minified or compressed data arrays) with clear truncation warnings.
+To get the absolute most out of this tool, check out our deep-dive engineering articles on **R3D HILLS**:
+
+*   **[Core Tool Architecture]** [Discover how P2M handles gigabyte-scale repositories efficiently](https://r3dhills.com/project2markdown-ai-context-generator/)
+*   **[Unreal Engine 5 Tutorial]** [Step-by-Step Guide: How to give your entire UE5 project to AI](https://r3dhills.com/how-to-give-ue5-project-to-ai/)
 
 ---
 
-## 🛠️ Supported Environments & Extensions
+## ⚡ Key Features
 
-Project2Markdown filters out binaries, images, and heavy build artifacts out of the box, focusing strictly on meaningful human-readable source code:
-
-| Category | Supported Extensions |
+| Feature | Description |
 | :--- | :--- |
-| **Web & Scripting** | `.js`, `.ts`, `.jsx`, `.tsx`, `.php`, `.html`, `.css`, `.json` |
-| **Systems & Mobile** | `.go`, `.cpp`, `.hpp`, `.c`, `.h`, `.cs`, `.java`, `.py`, `.rb`, `.rs`, `.swift`, `.kt` |
-| **Game Engines (Unreal)** | `.uproject`, `.uplugin`, `.t3d`, `.copy`, `.usf`, `.ush` |
-| **Data & Configuration** | `.md`, `.txt`, `.yaml`, `.yml`, `.xml`, `.ini`, `.conf` |
-
-### 🚫 Automatically Ignored Directories
-To keep your context lightweight, the following directories are completely skipped during traversal:
-` .git ` • ` .github ` • ` node_modules ` • ` vendor ` • ` bin ` • ` obj ` • ` binaries ` • ` intermediate ` • ` saved ` • ` deriveddatacache ` • ` .vs `
+| **Stream-Based Architecture** | Uses a `bufio.Scanner` pipeline to read/write line-by-line[cite: 1]. Near-zero memory footprint, even on enterprise codebases. |
+| **Directory Tree Generation** | Automatically injects an ASCII folder map at the top, giving the LLM an instant birds-eye view of your architecture[cite: 1]. |
+| **Smart Exclusion Grid** | Out-of-the-box filtering for heavy directories (`.git`, `node_modules`, `Intermediate`, `Saved`)[cite: 1]. Avoids self-inclusion automatically. |
+| **Markdown Safety Grid** | Automatically detects and sanitizes pre-existing triple backticks (```) inside code files to prevent formatting breaks[cite: 1]. |
 
 ---
 
-## 🚀 Getting Started
+## 🎮 Tailored for Unreal Engine 5 (UE5)
 
-### Prerequisites
-- [Go](https://go.dev/doc/install) (version 1.16 or higher recommended)
+While P2M works flawlessly with any programming language, it features native optimizations designed specifically for game developers[cite: 1]. 
 
-### Installation & Build
+Visual scripting languages (like UE Blueprints and Maps) are traditionally stored as heavy binary assets (`.uasset`/`.umap`), making them unreadable for LLMs. P2M bridges this gap perfectly by natively parsing text-based metadata, shiders, and configuration files[cite: 1]:
+*   **Supported Extensions:** `.uproject`, `.uplugin`, `.t3d`, `.usf`, `.ush`[cite: 1]
+*   **Automatic Noise Reduction:** Automatically skips massive compiled engine folders like `Saved`, `Intermediate`, `Binaries`, and `DerivedDataCache`[cite: 1].
 
-1. Clone the repository directly into your local machine:
-   ```bash
-   git clone https://github.com/NematollahShojaei/project2markdown.git
-   cd project2markdown
-   ```
-2. Build the production-ready executable:
-   ```bash
-   go build -ldflags="-s -w" -o project2markdown.exe project2markdown.go
-   ```
+> **💡 The Blueprint Pipeline:** By combining Unreal Engine's native **Bulk Export** feature (exporting logic to `.T3D` or `.COPY` formats) with Project2Markdown, you can successfully pack your entire visual scripting architecture into a lightweight text context that Claude or ChatGPT can fully understand, refactor, and debug.
 
-### **How to Use**
+---
 
-Simply place the generated executable (project2markdown.exe) or run the script directly inside the root directory of the project you want to process:
+## 🛠️ Quick Start
 
-```bash
-# Run via Go directly
-go run project2markdown.go
+### 1. Download the Binary
+Head over to the **[Releases](https://github.com/nematollahshojaei/project2markdown/releases)** section and download the latest compiled executable for your operating system.
 
-# Or run the compiled binary
-./project2markdown
-```
+### 2. Execution
+Drop the `project2markdown` executable directly into the root folder of the project you want to process.
 
-### **Output**
+*   **Windows:** Right-click and select **Run as Administrator**.
+*   **Linux/macOS:** Run via terminal:
+    ```bash
+    chmod +x project2markdown
+    ./project2markdown
+    ```
 
-The tool reads the folder name (e.g., MyAwesomeApp) and instantly drops a beautifully packed context file named:
-```text
-MyAwesomeApp_context.md
-```
+### 3. Output
+The tool will instantly generate a consolidated context file named `[Your_Project_Name]_context.md` in the same directory, completely optimized and ready to be dragged-and-dropped into any AI interface.
 
-## **📂 Example Output Structure**
+---
 
-The generated context file follows a strict, highly scannable design:
+## 📄 License
 
-```text
-# MyAwesomeApp Project Context & Source Tree
+This project is open-source and software released under the permissive **MIT License**. Feel free to modify, distribute, or integrate it into your automated CI/CD pipelines.
 
-## 1. Directory Structure
-MyAwesomeApp/
-├── internal/
-│   └── parser.go
-└── config.yaml
+---
 
-==================================================
-PROJECT STRUCTURE & EXISTING SOURCE CODE
-==================================================
+## 🤝 Connect & Network
 
-[FILE: MyAwesomeApp/internal/parser.go]  
-```
-```go
-package internal  
-// Your streamed code contents seamlessly processed here... 
-```
+Developed with 💙 by **Nematollah Shojaei** — Unreal Engine Technical Specialist & Software Engineer.
 
-## **📝 License**
-
-Distributed under the MIT License. See LICENSE for more information.  
-Copyright 2026 **R3D HILLS**. All Rights Reserved.
+*   **Website:** [r3dhills.com](https://www.r3dhills.com)
+*   **LinkedIn:** [linkedin.com/in/NematollahShojaei](https://linkedin.com/in/NematollahShojaei)
+*   **Contact:** nemat@r3dhills.com
