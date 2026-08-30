@@ -3,18 +3,18 @@
 # ==========================================
 
 # 1. Compiled Binaries (Windows, Linux, Mac)
-p2m
-p2m-cli
-p2m-gui
-p2m.exe
-p2m-cli.exe
-p2m-gui.exe
-project2markdown
-project2markdown-cli
-project2markdown-gui
+/p2m
+/p2m-cli
+/p2m-gui
+/p2m.exe
+/p2m-cli.exe
+/p2m-gui.exe
+/project2markdown
+/project2markdown-cli
+/project2markdown-gui
 project2markdown.exe
-project2markdown-cli.exe
-project2markdown-gui.exe
+/project2markdown-cli.exe
+/project2markdown-gui.exe
 
 # 2. Generated Markdown Context Files
 # Prevents the AI context files from being committed to the repo
