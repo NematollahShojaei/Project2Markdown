@@ -45,34 +45,20 @@ project/         ──▶  p2m --cli  ──▶  context.md  ──▶  🤖 pa
 
 No cloning, no building — run it instantly from anywhere.
 
-<table>
-<tr>
-<td width="33%" valign="top">
-
 **🍎 macOS / Linux**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nematollahshojaei/project2markdown/main/install.sh | bash
 ```
 
-</td>
-<td width="33%" valign="top">
-
-**🪟 Windows**
+**🪟 Windows (PowerShell)**
 ```powershell
 irm https://raw.githubusercontent.com/nematollahshojaei/project2markdown/main/install.ps1 | iex
 ```
 
-</td>
-<td width="33%" valign="top">
-
-**🐹 Go installed**
+**🐹 Go installed (cross-platform)**
 ```bash
 go run github.com/nematollahshojaei/project2markdown/cmd/p2m@latest --cli
 ```
-
-</td>
-</tr>
-</table>
 
 > Once installed, type **`p2m`** to launch the Web UI, or **`p2m --cli`** to generate context directly in your terminal. That's it.
 
