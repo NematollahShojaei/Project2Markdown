@@ -1,25 +1,48 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# ==========================================
+# Project2Markdown (P2M) - Git Ignore Rules
+# ==========================================
 
-# Test binary, built with `go test -c`
-*.test
+# 1. Compiled Binaries (Windows, Linux, Mac)
+p2m
+p2m-cli
+p2m-gui
+p2m.exe
+p2m-cli.exe
+p2m-gui.exe
+project2markdown
+project2markdown-cli
+project2markdown-gui
+project2markdown.exe
+project2markdown-cli.exe
+project2markdown-gui.exe
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+# 2. Generated Markdown Context Files
+# Prevents the AI context files from being committed to the repo
+*_context.md
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# 3. Go Winres Generated Resource Files
+# We intentionally KEEP *.syso files in the repository.
+# This ensures that anyone cloning the repo can build the app with the Windows icon out-of-the-box without needing to install go-winres.
 
-# Go workspace file
+# 4. Go Dependencies & Workspaces
+vendor/
 go.work
 go.work.sum
 
-# env file
+# 5. IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 6. OS Specific Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 7. Environment Variables (Security)
 .env
+.env.local

@@ -1,0 +1,79 @@
+# Copyright 2026 R3D HILLS. All Rights Reserved.
+# Enterprise CI/CD Pipeline for Project2Markdown
+
+name: Release P2M
+
+# Zero-Bug Policy: Trigger the build ONLY when a version tag (e.g., v2.0.0) is pushed.
+# Regular commits and pushes will NOT trigger this workflow.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Required permissions to automatically create a release and upload files
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Upload Assets
+    runs-on: ubuntu-latest
+    
+    # Matrix strategy to compile for all major operating systems and architectures concurrently
+    strategy:
+      matrix:
+        include:
+          # Linux Builds
+          - os: linux
+            arch: amd64
+            name: p2m-linux-amd64
+          - os: linux
+            arch: arm64
+            name: p2m-linux-arm64
+            
+          # macOS Builds (Intel & Apple Silicon)
+          - os: darwin
+            arch: amd64
+            name: p2m-mac-intel
+          - os: darwin
+            arch: arm64
+            name: p2m-mac-arm
+            
+          # Windows Builds (CLI and GUI versions)
+          - os: windows
+            arch: amd64
+            name: p2m-windows-cli.exe
+            flags: "-s -w"
+          - os: windows
+            arch: amd64
+            name: p2m-windows-gui.exe
+            flags: "-s -w -H=windowsgui"
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          # Automatically read the Go version from your go.mod file
+          go-version-file: 'go.mod'
+
+      - name: Compile Binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            # Build Windows versions with specific flags (GUI vs CLI)
+            go build -ldflags="${{ matrix.flags }}" -o ${{ matrix.name }} ./cmd/p2m
+          else
+            # Build Unix versions (Linux/Mac)
+            go build -ldflags="-s -w" -o ${{ matrix.name }} ./cmd/p2m
+          fi
+
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.name }}
+          generate_release_notes: true
