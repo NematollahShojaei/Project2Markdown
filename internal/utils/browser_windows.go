@@ -7,6 +7,7 @@ package utils
 
 import (
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -16,6 +17,17 @@ func OpenBrowser(url string) error {
 
 	// Zero-Bug Policy: Prevent Windows from spawning a temporary CMD window for the browser
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
+	return cmd.Start()
+}
+
+// OpenFolderInOS opens the Windows File Explorer and highlights the generated file.
+func OpenFolderInOS(path string) error {
+	cleanPath := filepath.FromSlash(path)
+
+	// Zero-Bug Policy: Call explorer directly without cmd /c to prevent any black console windows.
+	// Explorer is a GUI subsystem app, so it won't flash a console natively.
+	cmd := exec.Command("explorer", "/select,"+cleanPath)
 
 	return cmd.Start()
 }

@@ -13,7 +13,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org/)
 [![Zero Dependency](https://img.shields.io/badge/Dependencies-Zero-16A34A?style=for-the-badge)](#)
-[![Version](https://img.shields.io/badge/Version-2.0.0-FF007F?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-2.0.1-FF007F?style=for-the-badge)](#)
 
 <br/>
 
@@ -57,7 +57,7 @@ irm https://raw.githubusercontent.com/nematollahshojaei/project2markdown/main/in
 
 **🐹 Go installed (cross-platform)**
 ```bash
-go run github.com/nematollahshojaei/project2markdown/cmd/p2m@latest --cli
+go run github.com/nematollahshojaei/project2markdown/v2/cmd/p2m@latest --cli
 ```
 
 > Once installed, type **`p2m`** to launch the Web UI, or **`p2m --cli`** to generate context directly in your terminal. That's it.
@@ -72,7 +72,8 @@ Run `p2m` with no flags and a local **Glassmorphism dashboard** opens in your br
 
 - 📊 **Live metrics** — tokens/sec, elapsed time, file count, all updating in real time
 - 🗂️ **Smart file explorer** — browse local drives or drop in a remote GitHub URL
-- 🎛️ **One-click toggles** — strip comments, strip empty lines, custom AI prompts
+- 🎛️ **One-click toggles** — strip comments, strip empty lines, custom AI prompts, and **Allow Sensitive Files**
+- 📂 **Smart Output & Open Folder** — Auto-routes read-only paths to `Documents/Project2Markdown` and highlights the generated file in your OS natively.
 
 <br clear="right"/>
 
@@ -80,6 +81,8 @@ Run `p2m` with no flags and a local **Glassmorphism dashboard** opens in your br
 ## 💻 CLI Mode
 
 For terminal-first developers. Every example below is copy-paste ready.
+
+> 💡 **Tip:** Run `p2m --help` at any time to see the full list of available flags, options, and examples directly in your terminal.
 
 <details open>
 <summary><b>Basic generation (Markdown output)</b></summary>
@@ -113,6 +116,14 @@ p2m --cli --include="*.go, src/, config.json"
 ```
 </details>
 
+<details>
+<summary><b>Specify output directory & allow sensitive files (.env, keys)</b></summary>
+
+```bash
+p2m --cli --output="./my_exports" --allow-secrets
+```
+</details>
+
 <br/>
 
 <a id="restore-mode"></a>
@@ -124,7 +135,7 @@ Got a full project back from an AI as one Markdown/XML/JSON file? Rebuild every 
 p2m --restore=my_project_context.xml
 ```
 
-🛡️ **Built-in Path Traversal protection** — malicious or hallucinated paths (`../../etc/passwd`, `C:\Windows`, etc.) are automatically blocked before a single file is written.
+🛡️ **Bulletproof Path Traversal Protection** — Malicious or hallucinated paths (`../../etc/passwd`, `C:\Windows`, etc.) are mathematically blocked (LFI/RFI safe) before a single file is written, even on Root directories.
 
 <br/>
 
@@ -137,7 +148,9 @@ p2m --restore=my_project_context.xml
 | 🧠 **Built-in Tokenizer** | Zero-dependency heuristic tokenizer — accurate AI token counts, no heavy ML libs |
 | 🌐 **Remote Fetching** | Point it at any public GitHub URL — no local clone required |
 | 🤖 **AI-Optimized Formats** | Export as **Markdown**, **XML** *(best for Claude)*, or **JSON** *(best for APIs)* |
-| 🛡️ **Universal Ignore Engine** | Auto-respects `.gitignore`, `.p4ignore`, and `.p2mignore` |
+| 🛡️ **Universal Ignore Engine** | Auto-respects `.gitignore`, `.p4ignore`, and `.p2mignore`. Safely redacts `.env` and private keys by default. |
+| 🔒 **Enterprise Security** | Hardened against SSRF, ZipSlip, LFI/RFI, and Memory/Goroutine Leaks. |
+| 📂 **Smart Output Routing** | Automatically redirects outputs from Read-Only directories to a safe `Documents/Project2Markdown` workspace. |
 | 🎮 **UE5-Native Parsing** | Understands `.uproject`, `.uplugin`, `.t3d`, `.usf`, `.ush` — skips `Saved`, `Intermediate`, `Binaries`, `DerivedDataCache` |
 
 <br/>

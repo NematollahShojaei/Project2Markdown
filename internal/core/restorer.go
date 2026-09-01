@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nematollahshojaei/project2markdown/internal/utils"
+	"github.com/nematollahshojaei/project2markdown/v2/internal/utils"
 )
 
 // JSONRestoreFormat defines the structure for restoring from a JSON context file.
@@ -88,11 +88,6 @@ func RestoreProject(mdPath, destinationDir string, onProgress func(filesProcesse
 
 		if rawPath != "" {
 			cleanPath := filepath.Clean(rawPath)
-			// Security Pillar: Prevent Path Traversal including Windows absolute paths (e.g., C:\)
-			if strings.HasPrefix(cleanPath, "..") || filepath.IsAbs(cleanPath) {
-				fmt.Printf("Security Warning: Skipped malicious path: %s\n", cleanPath)
-				continue
-			}
 
 			// Only strip the first directory if it's an MD file (which includes the ProjectName/ prefix)
 			if isMDHeader {
@@ -103,12 +98,27 @@ func RestoreProject(mdPath, destinationDir string, onProgress func(filesProcesse
 			}
 
 			absoluteTargetPath := filepath.Join(destinationDir, cleanPath)
-			targetDir := filepath.Dir(absoluteTargetPath)
-			os.MkdirAll(targetDir, 0755)
 
+			// Security Pillar: Bulletproof Path Traversal Prevention (LFI/RFI)
+			// filepath.Rel mathematically ensures the target is not outside the destination, even for Root dirs.
+			rel, err := filepath.Rel(destinationDir, absoluteTargetPath)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				fmt.Printf("Security Warning: Skipped malicious path: %s\n", cleanPath)
+				continue
+			}
+
+			// Zero-Bug Policy: Reset state machine safely before opening a new file
 			if currentFile != nil {
 				currentFile.Close()
+				currentFile = nil
 			}
+			inCodeBlock = false
+
+			targetDir := filepath.Dir(absoluteTargetPath)
+			if err := os.MkdirAll(targetDir, 0755); err != nil {
+				continue // Skip file if directory creation fails
+			}
+
 			currentFile, err = os.Create(absoluteTargetPath)
 			if err == nil {
 				filesProcessed++
@@ -174,16 +184,21 @@ func restoreFromJSON(jsonPath, destinationDir string, onProgress func(filesProce
 
 	for _, f := range ctx.Files {
 		cleanPath := filepath.Clean(f.Path)
-		// Security Pillar: Prevent Path Traversal including Windows absolute paths (e.g., C:\)
-		if strings.HasPrefix(cleanPath, "..") || filepath.IsAbs(cleanPath) {
+		absoluteTargetPath := filepath.Join(destinationDir, cleanPath)
+
+		// Security Pillar: Bulletproof Path Traversal Prevention (LFI/RFI)
+		rel, err := filepath.Rel(destinationDir, absoluteTargetPath)
+		if err != nil || strings.HasPrefix(rel, "..") {
 			fmt.Printf("Security Warning: Skipped malicious path in JSON: %s\n", cleanPath)
 			continue
 		}
 
-		absoluteTargetPath := filepath.Join(destinationDir, cleanPath)
-		os.MkdirAll(filepath.Dir(absoluteTargetPath), 0755)
+		if err := os.MkdirAll(filepath.Dir(absoluteTargetPath), 0755); err != nil {
+			continue // Zero-Bug Policy: Skip file if directory creation fails
+		}
 
-		err := os.WriteFile(absoluteTargetPath, []byte(f.Content), 0644)
+		// Zero-Bug Policy: Use '=' instead of ':=' because 'err' is already declared in this block
+		err = os.WriteFile(absoluteTargetPath, []byte(f.Content), 0644)
 		if err == nil {
 			filesProcessed++
 			totalTokens += utils.EstimateTokens(f.Content)

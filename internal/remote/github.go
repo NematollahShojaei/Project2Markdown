@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -47,9 +48,11 @@ func DownloadAndExtractRepo(repoURL string, onProgress func(downloaded, total in
 	}
 	owner, repo := parts[0], parts[1]
 
-	// Security Pillar: Sanitize GitHub owner and repo to prevent URL injection/SSRF
-	if strings.Contains(owner, ".") || strings.Contains(owner, "/") || strings.Contains(repo, ".") || strings.Contains(repo, "/") {
-		return "", "", fmt.Errorf("invalid GitHub repository name format")
+	// Security Pillar: Strict Regex validation to prevent SSRF and URL Injection
+	// GitHub usernames and repos must only contain alphanumeric characters, hyphens, underscores, or periods.
+	validNameRegex := regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+	if !validNameRegex.MatchString(owner) || !validNameRegex.MatchString(repo) {
+		return "", "", fmt.Errorf("invalid GitHub repository name format (contains illegal characters)")
 	}
 
 	zipURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/zipball", owner, repo)
@@ -74,20 +77,25 @@ func DownloadAndExtractRepo(repoURL string, onProgress func(downloaded, total in
 		return "", "", fmt.Errorf("failed to download repository: HTTP %d (Check if repo is public)", resp.StatusCode)
 	}
 
-	out, err := os.Create(zipPath)
-	if err != nil {
-		return "", "", err
-	}
+	// Zero-Bug Policy: Wrap file operations in an anonymous function to ensure defer executes immediately after copy
+	err = func() error {
+		out, err := os.Create(zipPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
 
-	pw := &progressWriter{
-		writer:     out,
-		total:      resp.ContentLength, // Can be -1 if the server doesn't send Content-Length
-		onProgress: onProgress,
-		lastReport: time.Now(),
-	}
+		pw := &progressWriter{
+			writer:     out,
+			total:      resp.ContentLength,
+			onProgress: onProgress,
+			lastReport: time.Now(),
+		}
 
-	_, err = io.Copy(pw, resp.Body)
-	out.Close()
+		_, err = io.Copy(pw, resp.Body)
+		return err
+	}()
+
 	if err != nil {
 		return "", "", err
 	}
@@ -119,44 +127,49 @@ func unzipSafe(src, dest string) (string, error) {
 	defer r.Close()
 
 	var rootDir string
+	destClean := filepath.Clean(dest) + string(os.PathSeparator)
+
 	for i, f := range r.File {
-		fpath := filepath.Join(dest, f.Name)
+		// Zero-Bug Policy: Use closure to guarantee defer execution per iteration (prevents FD exhaustion)
+		err := func() error {
+			fpath := filepath.Join(dest, f.Name)
 
-		// Security Pillar: Prevent Zip Slip attacks by ensuring the file path is within the destination directory
-		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			return "", fmt.Errorf("illegal file path (Zip Slip detected): %s", fpath)
-		}
-
-		if i == 0 || rootDir == "" {
-			parts := strings.Split(f.Name, "/")
-			if len(parts) > 0 {
-				rootDir = filepath.Join(dest, parts[0])
+			// Security Pillar: Prevent Zip Slip attacks by ensuring the file path is strictly within the destination directory
+			if !strings.HasPrefix(fpath, destClean) {
+				return fmt.Errorf("illegal file path (Zip Slip detected): %s", fpath)
 			}
-		}
 
-		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
-			continue
-		}
+			if i == 0 || rootDir == "" {
+				parts := strings.Split(f.Name, "/")
+				if len(parts) > 0 {
+					rootDir = filepath.Join(dest, parts[0])
+				}
+			}
 
-		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
-			return "", err
-		}
+			if f.FileInfo().IsDir() {
+				return os.MkdirAll(fpath, os.ModePerm)
+			}
 
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			return "", err
-		}
+			if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+				return err
+			}
 
-		rc, err := f.Open()
-		if err != nil {
-			outFile.Close()
-			return "", err
-		}
+			outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				return err
+			}
+			defer outFile.Close()
 
-		_, err = io.Copy(outFile, rc)
-		outFile.Close()
-		rc.Close()
+			rc, err := f.Open()
+			if err != nil {
+				return err
+			}
+			defer rc.Close()
+
+			_, err = io.Copy(outFile, rc)
+			return err
+		}()
+
 		if err != nil {
 			return "", err
 		}

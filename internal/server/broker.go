@@ -38,7 +38,11 @@ func (b *Broker) listen() {
 		case s := <-b.newClients:
 			b.clients[s] = true
 		case s := <-b.closingClients:
-			delete(b.clients, s)
+			// Zero-Bug Policy: Safely delete and close the channel to prevent Goroutine/Memory leaks
+			if _, ok := b.clients[s]; ok {
+				delete(b.clients, s)
+				close(s)
+			}
 		case event := <-b.Notifier:
 			for clientMessageChan := range b.clients {
 				// Non-blocking send to prevent a slow client from blocking the entire broker

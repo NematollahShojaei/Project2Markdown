@@ -8,19 +8,19 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/nematollahshojaei/project2markdown/internal/core"
-	"github.com/nematollahshojaei/project2markdown/internal/remote"
-	"github.com/nematollahshojaei/project2markdown/internal/utils"
+	"github.com/nematollahshojaei/project2markdown/v2/internal/core"
+	"github.com/nematollahshojaei/project2markdown/v2/internal/remote"
+	"github.com/nematollahshojaei/project2markdown/v2/internal/utils"
 )
 
 // API Request Structs for JSON parsing
 type GenerateRequest struct {
 	TargetDir        string `json:"targetDir"`
+	OutputDir        string `json:"outputDir"`
 	RemoteURL        string `json:"remoteURL"`
 	OutputFileName   string `json:"outputFileName"`
 	CustomIgnores    string `json:"customIgnores"`
@@ -30,6 +30,7 @@ type GenerateRequest struct {
 	RemoveEmptyLines bool   `json:"removeEmptyLines"`
 	AiInstructions   bool   `json:"aiInstructions"`
 	CustomPrompt     string `json:"customPrompt"`
+	AllowSecrets     bool   `json:"allowSecrets"`
 }
 
 type RestoreRequest struct {
@@ -49,6 +50,7 @@ func StartUI(port string, uiHTML []byte) {
 	var (
 		lastHeartbeat time.Time
 		heartbeatMu   sync.Mutex
+		shutdownTimer *time.Timer
 	)
 
 	// Route: Serve the embedded HTML UI
@@ -71,6 +73,7 @@ func StartUI(port string, uiHTML []byte) {
 
 		targetDir := req.TargetDir
 		outName := req.OutputFileName
+		outputDir := req.OutputDir
 		cleanupDir := ""
 
 		// Handle Remote GitHub Repository
@@ -93,14 +96,21 @@ func StartUI(port string, uiHTML []byte) {
 			targetDir = extractedPath
 			cleanupDir = tmpDir
 
+			// Zero-Bug Policy: Prevent saving the output file inside the temporary directory
+			if outputDir == "" {
+				workspace, err := utils.GetDefaultWorkspace()
+				if err == nil {
+					outputDir = workspace
+				}
+			}
+
 			if outName == "" {
-				cwd, _ := os.Getwd()
 				parts := strings.Split(strings.Trim(strings.TrimPrefix(strings.TrimPrefix(req.RemoteURL, "https://github.com/"), "github.com/"), "/"), "/")
 				repoName := "repo"
 				if len(parts) >= 2 {
 					repoName = parts[1]
 				}
-				outName = filepath.Join(cwd, repoName+"_context."+req.Format)
+				outName = repoName + "_context." + req.Format
 			}
 		}
 
@@ -117,10 +127,14 @@ func StartUI(port string, uiHTML []byte) {
 			}
 		}
 
-		outputFile, tokens, err := core.GenerateProject(
-			targetDir, outName, req.CustomIgnores, req.Format, req.IncludePatterns,
+		onBlocked := func(path string) {
+			broker.SendLog("WARN", "Filtered", path)
+		}
+
+		outputFile, tokens, filtered, err := core.GenerateProject(
+			targetDir, outputDir, outName, req.CustomIgnores, req.Format, req.IncludePatterns,
 			req.RemoveComments, req.RemoveEmptyLines, req.AiInstructions, req.CustomPrompt,
-			onProgress,
+			req.AllowSecrets, onProgress, onBlocked,
 		)
 
 		// Send final metric
@@ -134,6 +148,11 @@ func StartUI(port string, uiHTML []byte) {
 			http.Error(w, fmt.Sprintf("Error: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		if filtered > 0 {
+			broker.SendLog("WARN", "Security", fmt.Sprintf("%d sensitive files were redacted.", filtered))
+		}
+
 		fmt.Fprintf(w, "Success! Generated: %s (Approx. %d Tokens)", outputFile, tokens)
 	})
 
@@ -201,6 +220,27 @@ func StartUI(port string, uiHTML []byte) {
 		fmt.Fprintf(w, "Success! Project restored into: %s", req.DestinationDir)
 	})
 
+	// Route: Open Folder in OS
+	http.HandleFunc("/api/open-folder", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+			return
+		}
+
+		if err := utils.OpenFolderInOS(req.Path); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to open folder: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// Route: Custom File Explorer (Zero-Dependency)
 	http.HandleFunc("/api/explore", handleExplore)
 	http.HandleFunc("/api/quickaccess", handleQuickAccess)
@@ -219,21 +259,28 @@ func StartUI(port string, uiHTML []byte) {
 		}()
 	})
 
+	// Route: Explicit Disconnect
+	http.HandleFunc("/api/disconnect", func(w http.ResponseWriter, r *http.Request) {
+		heartbeatMu.Lock()
+		// Zero-Bug Policy: Wait 5 seconds before shutting down.
+		// If this was just a page refresh, the immediate heartbeat on page load will cancel this timer!
+		shutdownTimer = time.AfterFunc(5*time.Second, func() {
+			fmt.Println("Browser tab closed. Shutting down server safely...")
+			os.Exit(0)
+		})
+		heartbeatMu.Unlock()
+	})
+
 	// Route: Heartbeat (Ping)
 	http.HandleFunc("/api/heartbeat", func(w http.ResponseWriter, r *http.Request) {
 		heartbeatMu.Lock()
+		if shutdownTimer != nil {
+			shutdownTimer.Stop() // Cancel shutdown if page was just refreshed
+			shutdownTimer = nil
+		}
 		lastHeartbeat = time.Now()
 		heartbeatMu.Unlock()
 		w.WriteHeader(http.StatusOK)
-	})
-
-	// Route: Explicit Disconnect
-	http.HandleFunc("/api/disconnect", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Browser tab closed. Shutting down server safely...")
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			os.Exit(0)
-		}()
 	})
 
 	// Heartbeat Monitor Goroutine
@@ -250,6 +297,7 @@ func StartUI(port string, uiHTML []byte) {
 			heartbeatMu.Unlock()
 
 			// Enterprise Policy: 1 HOUR timeout to act as a Garbage Collector for zombie processes.
+			// Browser throttling (e.g., Chrome background tabs) won't kill the server prematurely.
 			if elapsed > 1*time.Hour {
 				fmt.Println("UI heartbeat lost for 1 hour (Zombie Process). Shutting down server safely...")
 				os.Exit(0)

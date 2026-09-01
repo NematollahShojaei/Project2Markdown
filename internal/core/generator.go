@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/nematollahshojaei/project2markdown/internal/utils"
+	"github.com/nematollahshojaei/project2markdown/v2/internal/utils"
 )
 
 // MaxLineBuffer defines a strict 20MB limit per single raw line to capture ultra-large compressed assets.
@@ -30,21 +30,23 @@ type StringWriter interface {
 // Security Pillar: Supports dynamic absolute paths while maintaining strict file boundaries.
 // Architecture Pillar: Decoupled from UI/CLI using the onProgress callback.
 func GenerateProject(
-	targetDir, outputFileName, customIgnores, format, includePatterns string,
+	targetDir, outputDir, outputFileName, customIgnores, format, includePatterns string,
 	removeComments, removeEmptyLines, aiInstructions bool,
-	customPrompt string,
+	customPrompt string, allowSecrets bool,
 	onProgress func(filesProcessed, currentTokens int, currentPath string),
-) (string, int, error) {
+	onBlocked func(path string),
+) (string, int, int, error) {
+	var filteredCount int
 	var err error
 	if targetDir == "" {
 		targetDir, err = os.Getwd()
 		if err != nil {
-			return "", 0, fmt.Errorf("unable to retrieve current working directory: %v", err)
+			return "", 0, 0, fmt.Errorf("unable to retrieve current working directory: %v", err)
 		}
 	} else {
 		targetDir, err = filepath.Abs(targetDir)
 		if err != nil {
-			return "", 0, fmt.Errorf("invalid target directory: %v", err)
+			return "", 0, 0, fmt.Errorf("invalid target directory: %v", err)
 		}
 	}
 
@@ -52,6 +54,26 @@ func GenerateProject(
 		format = "md"
 	}
 	projectName := filepath.Base(targetDir)
+
+	// Determine final output directory with Fallback Logic
+	finalOutputDir := outputDir
+	if finalOutputDir == "" {
+		finalOutputDir = targetDir
+	} else {
+		finalOutputDir, _ = filepath.Abs(finalOutputDir)
+	}
+
+	// Fallback to Documents/Project2Markdown if the directory is read-only
+	if !utils.IsWritable(finalOutputDir) {
+		fallback, err := utils.GetDefaultWorkspace()
+		if err == nil {
+			finalOutputDir = fallback
+			fmt.Printf("Notice: Target directory is read-only. Redirecting output to %s\n", finalOutputDir)
+		}
+	}
+
+	// Ensure the output directory exists
+	os.MkdirAll(finalOutputDir, 0755)
 
 	if outputFileName == "" {
 		outputFileName = projectName + "_context." + format
@@ -67,21 +89,22 @@ func GenerateProject(
 		}
 	}
 
-	if !filepath.IsAbs(outputFileName) {
-		outputFileName = filepath.Join(targetDir, outputFileName)
-	}
+	// Construct the absolute path for the final output file
+	finalOutputPath := filepath.Join(finalOutputDir, filepath.Base(outputFileName))
 
-	f, err := os.Create(outputFileName)
+	f, err := os.Create(finalOutputPath)
 	if err != nil {
-		return "", 0, fmt.Errorf("unable to create output file: %v", err)
+		return "", 0, 0, fmt.Errorf("unable to create output file at %s: %v", finalOutputPath, err)
 	}
 	defer f.Close()
 
 	ignoreEngine := NewIgnoreEngine(targetDir)
 	ignoreEngine.AddCustomPatterns(customIgnores)
+	ignoreEngine.SetExplicitIncludes(includePatterns)
+	ignoreEngine.SetAllowSecrets(allowSecrets)
 
 	var treeBuf bytes.Buffer
-	generateTree(targetDir, targetDir, "", filepath.Base(outputFileName), &treeBuf, ignoreEngine)
+	generateTree(targetDir, targetDir, "", filepath.Base(finalOutputPath), &treeBuf, ignoreEngine)
 	treeStr := treeBuf.String()
 
 	totalChars := len(treeStr)
@@ -151,7 +174,14 @@ func GenerateProject(
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
+			// Zero-Bug Policy: Recover from any unexpected panics in workers to prevent app crashes and deadlocks
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Worker panic recovered: %v\n", r)
+				}
+				wg.Done()
+			}()
+
 			for job := range jobs {
 				// I/O Bound check moved to worker for maximum concurrent speed
 				if !utils.IsTextFile(job.path) {
@@ -207,8 +237,18 @@ func GenerateProject(
 			totalChars += res.chars
 			totalTokens += res.tokens
 
-			if res.err != nil && format == "md" {
-				f.WriteString(fmt.Sprintf("\n// Error streaming file content: %v\n", res.err))
+			// Zero-Bug Policy: Safely format error messages without breaking JSON/XML structures
+			if res.err != nil {
+				errMsg := fmt.Sprintf("Error reading file: %v", res.err)
+				switch format {
+				case "md":
+					f.WriteString(fmt.Sprintf("\n// [%s]\n", errMsg))
+				case "xml":
+					f.WriteString(fmt.Sprintf("\n<!-- %s -->\n", errMsg))
+				case "json":
+					// For JSON, we avoid appending raw text to prevent syntax breakage.
+					// The error is silently ignored in the output, but valid content read so far is preserved.
+				}
 			}
 
 			switch format {
@@ -259,7 +299,7 @@ func GenerateProject(
 		}
 
 		lowerName := strings.ToLower(d.Name())
-		outBase := strings.ToLower(filepath.Base(outputFileName))
+		outBase := strings.ToLower(filepath.Base(finalOutputPath))
 		if lowerName == outBase || lowerName == "p2m.exe" || lowerName == "p2m" ||
 			lowerName == "project2markdown.exe" || lowerName == "project2markdown.go" ||
 			strings.Contains(lowerName, "_context.") {
@@ -285,6 +325,15 @@ func GenerateProject(
 				}
 			}
 
+			// Security Pillar: Check if file is sensitive
+			if ignoreEngine.IsSecurityBlocked(relPath) {
+				filteredCount++
+				if onBlocked != nil {
+					onBlocked(relPath)
+				}
+				return nil // Skip reading content, but it remains in the Directory Tree!
+			}
+
 			ext := strings.ToLower(filepath.Ext(d.Name()))
 			jobs <- fileJob{path: path, relPath: relPath, ext: ext}
 		}
@@ -298,10 +347,10 @@ func GenerateProject(
 	<-writerDone
 
 	if err != nil {
-		return "", 0, fmt.Errorf("traversal error: %v", err)
+		return "", 0, 0, fmt.Errorf("traversal error: %v", err)
 	}
 
-	return outputFileName, totalTokens, nil
+	return finalOutputPath, totalTokens, filteredCount, nil
 }
 
 // generateTree acts as a robust recursive directory-mapping printer using an io.Writer interface.
@@ -417,8 +466,18 @@ func streamFileContents(srcPath string, dstFile StringWriter, format string, rem
 	}
 
 	if err := scanner.Err(); err != nil {
-		if err == bufio.ErrTooLong && format == "md" {
-			_, _ = dstFile.WriteString(fmt.Sprintf("\n// [Zero-Bug Warning: Single raw line exceeded safe threshold of %d MB]\n", MaxLineBuffer/(1024*1024)))
+		// Graceful Degradation: If a line is too long, warn but don't fail the whole process
+		if err == bufio.ErrTooLong {
+			warningMsg := fmt.Sprintf("[Zero-Bug Warning: Single raw line exceeded safe threshold of %d MB]", MaxLineBuffer/(1024*1024))
+			switch format {
+			case "md":
+				_, _ = dstFile.WriteString(fmt.Sprintf("\n// %s\n", warningMsg))
+			case "xml":
+				_, _ = dstFile.WriteString(fmt.Sprintf("\n<!-- %s -->\n", warningMsg))
+			case "json":
+				_, _ = dstFile.WriteString(utils.EscapeJSONString("\n// " + warningMsg))
+			}
+			return charCount, tokenCount, nil // Return nil error to continue processing other files
 		}
 		return charCount, tokenCount, err
 	}
